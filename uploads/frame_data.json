@@ -1,0 +1,15 @@
+{
+    "boundary": 800,
+    "screen_width": 1920,
+    "screen_height": 1080,
+    "apriltags": [],
+    "arucos": [
+        {
+            "id": 10,
+            "center": {
+                "x": 2193,
+                "y": 902
+            }
+        }
+    ]
+}

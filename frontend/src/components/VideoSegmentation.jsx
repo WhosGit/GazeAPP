@@ -31,7 +31,7 @@ const VideoSegmentation = () => {
     formData.append("head", headCondition);
     formData.append("media", mediaCondition);
 
-    const response = await fetch("http://127.0.0.1:5000/detect_segments", {
+    const response = await fetch("/api/detect_segments", {
       method: "POST",
       body: formData,
     });
@@ -83,7 +83,7 @@ const VideoSegmentation = () => {
       fps: parseFloat(fps)
     };
 
-    const response = await fetch("http://127.0.0.1:5000/submit_segments", {
+    const response = await fetch("/submit_segments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)

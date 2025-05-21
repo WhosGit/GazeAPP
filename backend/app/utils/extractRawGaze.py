@@ -19,6 +19,7 @@ def gaze2npy(file_path, participants):
         fixation_data = df_participant_resampled[["Fixation point X", "Fixation point Y"]].to_numpy()
 
         # Save as an .npy file
-        npy_file_path = rf"./uploads/{participant}.npy"  # Output file path
-        np.save(npy_file_path, fixation_data)
+        # npy_file_path = rf"./uploads/{participant}.npy"  # Output file path
+        # np.save(npy_file_path, fixation_data)
+        return fixation_data
     return True

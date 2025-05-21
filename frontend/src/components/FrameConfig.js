@@ -39,7 +39,7 @@ const FrameConfig = () => {
       // Optional: send image to backend for marker recognition
       const formData = new FormData();
       formData.append("image", file);
-      const res = await fetch("http://127.0.0.1:5000/marker_recognition", {
+      const res = await fetch("/api/marker_recognition", {
         method: "POST",
         body: formData,
       });
@@ -59,7 +59,7 @@ const FrameConfig = () => {
     formData.append("image", selectedFile);
     formData.append("points", JSON.stringify(points));
 
-    const response = await fetch("http://127.0.0.1:5000/frame_config", {
+    const response = await fetch("/api/frame_config", {
       method: "POST",
       body: formData,
     });
