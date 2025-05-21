@@ -1,0 +1,56 @@
+# =====================
+# FRONTEND (React / Node)
+# =====================
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.DS_Store
+frontend/package-lock.json
+frontend/npm-debug.log*
+
+# =====================
+# BACKEND (Flask / Python)
+# =====================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+*.egg-info/
+*.bak
+backend/venv/
+backend/env/
+backend/.env
+backend/.DS_Store
+backend/uploads/
+backend/__pycache__/
+backend/*.py[cod]
+
+# Flask cache
+instance/
+.webassets-cache
+
+# =====================
+# SYSTEM / IDEs
+# =====================
+*.swp
+*~
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# =====================
+# OS-specific
+# =====================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Desktop.ini
+$RECYCLE.BIN/
