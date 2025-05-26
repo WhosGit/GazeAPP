@@ -3,9 +3,10 @@ import cv2
 import json
 import numpy as np
 from pupil_apriltags import Detector
+# from flask import current_app
 
-output_json_path = "./uploads/frame_data.json"
-output_image_path = "./uploads/warped_frame.jpg"
+# output_json_dir = current_app.config['OUTPUT_FOLDER']
+# output_image_dir = current_app.config['OUTPUT_FOLDER']
 
 def extractFrame(image, points, save=True):
     display_width = 500
@@ -91,11 +92,7 @@ def extractFrame(image, points, save=True):
             cv2.putText(warped_image, f"Aruco:{idx}", (center[0]-10, center[1]-10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-    # === Save results ===
-    if save:
-        with open(output_json_path, 'w') as f:
-            json.dump(tag_data, f, indent=4)
-        cv2.imwrite(output_image_path, warped_image)
+
 
     return {
         "warped_image": warped_image,

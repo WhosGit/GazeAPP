@@ -4,7 +4,8 @@ from app.utils import (
     detect_markers,
     compute_segment_indices,
     assign_labels,
-    generate_plot
+    generate_plot,
+    gaze_process
 )
 import os
 import numpy as np
@@ -14,6 +15,8 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 import base64
 import tempfile
+from pathlib import Path
+
 
 # url prefix: /api
 api = Blueprint("api", __name__)
@@ -54,6 +57,17 @@ def frame_config():
         return jsonify({"error": "Invalid points format"}), 400
 
     result = extractFrame(image, points)
+
+    # === Save results ===
+    output_json_path = os.path.join(current_app.config['OUTPUT_FOLDER'], f"{Path(filename).stem}.json")
+    output_marker_path = os.path.join(current_app.config['OUTPUT_FOLDER'], f"{Path(filename).stem}_marker.json")
+    with open(output_marker_path, 'w') as f:
+        json.dump(result["transformed_marker_coords"], f, indent=4)
+    output_image_path = os.path.join(current_app.config['OUTPUT_FOLDER'],  filename)
+    with open(output_json_path, 'w') as f:
+        json.dump(result["tags"], f, indent=4)
+    cv2.imwrite(output_image_path, result["warped_image"])
+
     encoded_img = encode_image_to_base64(result["warped_image"])
     return jsonify({
         "message": "Frame processed",
@@ -74,15 +88,15 @@ def extract_raw_gaze():
     participant_name = request.form.get("participant")
     
     filename = secure_filename(excel_file.filename)
-    excel_path = os.path.join('uploads', filename)
+    excel_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
     excel_file.save(excel_path)
     participants = participant_name.split(', ')
-    fixation_data = gaze2npy(excel_path, participants)
+    gaze2npy(excel_path, participants)
 
-    # Save the fixation data as .npy files
-    for participant in participants:
-        npy_file_path = os.path.join(current_app.config["OUTPUT_FOLDER"], f"{participant}.npy")
-        np.save(npy_file_path, fixation_data)
+    # # Save the fixation data as .npy files
+    # for participant in participants:
+    #     npy_file_path = os.path.join(current_app.config["OUTPUT_FOLDER"], f"p12-2.npy")
+    #     np.save(npy_file_path, fixation_data)
 
     return jsonify({
         "message": f"Gaze data extracted for {participant_name}",
@@ -91,6 +105,7 @@ def extract_raw_gaze():
 
 @api.route("/detect_segments", methods=["POST"])
 def detect_segments():
+    
     video_file = request.files.get("video")
     light = request.form.get("light", "")
     head = request.form.get("head", "")
@@ -99,15 +114,28 @@ def detect_segments():
     if not video_file:
         return jsonify({"error": "No video file provided"}), 400
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        video_path = tmp.name
-        video_file.save(video_path)
+    # with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+    #     video_path = tmp.name
+    #     video_file.save(video_path)
+
+    # Save the video file
+    video_path = os.path.join(current_app.config['UPLOAD_FOLDER'], "video.mp4")
+    video_file.save(video_path)
 
     try:
         marker_0, marker_1, fps = detect_markers(video_path)
         m0_merged, m1_merged, starts, ends = compute_segment_indices(marker_0, marker_1)
         labels = assign_labels(starts, light, head, media)
         plot_base64 = generate_plot(m0_merged, m1_merged)
+
+        # Save the segments to a JSON file
+        segmentation_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "segments.json")
+        with open(segmentation_path, "w") as f:
+            json.dump({
+                "starts": starts,
+                "ends": ends,
+                "labels": labels
+            }, f, indent=2)
 
         return jsonify({
             "starts": starts,
@@ -124,6 +152,8 @@ def detect_segments():
 # Re-execute to restore Flask endpoint in the new kernel context
 @api.route("/submit_segments", methods=["POST"])
 def submit_segments():
+
+
     data = request.get_json()
     starts = data.get("starts", [])
     ends = data.get("ends", [])
@@ -165,10 +195,22 @@ def submit_segments():
             "label": labels[i]
         })
 
-    with open("segments_25fps.json", "w") as f:
+    segmentation_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "segments_25fps.json")
+    with open(segmentation_path, "w") as f:
         json.dump(adjusted_segments, f, indent=2)
+
+    # process_gaze
+    video_path = os.path.join(current_app.config['UPLOAD_FOLDER'], "video.mp4")
+    gaze_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "p12-2 (2).npy")
+    tag_json = os.path.join(current_app.config['OUTPUT_FOLDER'], "may17.json")
+    output_dir = current_app.config['OUTPUT_FOLDER']
+
+    # Process gaze data
+    gaze_process(video_path, gaze_path, segmentation_path, tag_json, output_dir)
+
 
     return jsonify({
         "message": "Segments saved successfully.",
         "segment_count": len(adjusted_segments)
     })
+

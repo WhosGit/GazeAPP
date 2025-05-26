@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import io
 import base64
 
+import json
+import os
+
 def detect_markers(video_path):
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     parameters = cv2.aruco.DetectorParameters()

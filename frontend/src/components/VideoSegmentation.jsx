@@ -83,7 +83,7 @@ const VideoSegmentation = () => {
       fps: parseFloat(fps)
     };
 
-    const response = await fetch("/submit_segments", {
+    const response = await fetch("/api/submit_segments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
