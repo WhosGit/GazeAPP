@@ -19,3 +19,4 @@ def create_app():
 import app.utils
 import app.views
 import app.api
+from app.model import *

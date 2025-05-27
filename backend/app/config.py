@@ -6,6 +6,8 @@ HOST = '0.0.0.0'
 PORT = 5000
 DEBUG = True
 
+SECRET_KEY = 'cc6a27b7d3208ef55d640dea54a5d35d0f7eb1b61e22ff3d96054abf4ded5c9d'
+
 # File upload settings
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
 UPLOAD_FOLDER = ROOT_DIR / 'var' / 'uploads'

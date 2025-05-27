@@ -76,8 +76,8 @@ const FrameConfig = () => {
   return (
     <div>
       <h2>Frame Configuration</h2>
-      <p>Upload an image and click to mark the 8 required points:</p>
-      <ul>
+      <p style={{ color: "#636e72" }}>Upload an image and click to mark 8 points in order:</p>
+      <ul style={{ marginBottom: 10 }}>
         {labels.map((label, i) => (
           <li key={i}>{label}</li>
         ))}
@@ -85,12 +85,18 @@ const FrameConfig = () => {
       <input type="file" accept="image/*" onChange={handleFileChange} />
       <br />
       {imagePath && (
-        <div style={{ position: "relative", display: "inline-block" }}>
+        <div style={{ position: "relative", display: "inline-block", margin: "18px 0" }}>
           <img
             src={imagePath}
             alt="Annotate"
             onClick={handleImageClick}
-            style={{ cursor: "crosshair", width: "500px", height: "auto" }}
+            style={{
+              cursor: "crosshair",
+              width: "500px",
+              height: "auto",
+              borderRadius: "10px",
+              boxShadow: "0 2px 10px rgba(44,62,80,0.08)"
+            }}
           />
           {points.map((point, index) => (
             <div
@@ -100,22 +106,25 @@ const FrameConfig = () => {
                 position: "absolute",
                 top: point.y,
                 left: point.x,
-                width: "10px",
-                height: "10px",
-                backgroundColor: "red",
+                width: "16px",
+                height: "16px",
+                backgroundColor: "#e74c3c",
+                border: "2px solid #fff",
                 borderRadius: "50%",
                 transform: "translate(-50%, -50%)",
+                zIndex: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.13)"
               }}
             >
               <span
                 style={{
-                  position: "absolute",
-                  top: "-1.5em",
-                  left: "-1.5em",
-                  color: "white",
-                  fontSize: "12px",
-                  backgroundColor: "black",
-                  padding: "2px",
+                  color: "#fff",
+                  fontWeight: "bold",
+                  fontSize: "11px",
+                  textShadow: "0 1px 2px #000"
                 }}
               >
                 {index + 1}
@@ -125,7 +134,7 @@ const FrameConfig = () => {
         </div>
       )}
       <div>
-        <p>Selected Points:</p>
+        <p style={{ margin: "10px 0 4px 0" }}>Selected points:</p>
         <ul>
           {points.map((point, index) => (
             <li key={index}>
@@ -134,20 +143,27 @@ const FrameConfig = () => {
           ))}
         </ul>
       </div>
-      <button onClick={handleUndo} disabled={points.length === 0}>
-        Undo
-      </button>
-      <button onClick={handleSubmit} disabled={points.length !== 8}>
-        Submit
-      </button>
-      {responseMessage && <p>Server Response: {responseMessage}</p>}
+      <div style={{ margin: "10px 0" }}>
+        <button onClick={handleUndo} disabled={points.length === 0}>
+          Undo
+        </button>
+        <button onClick={handleSubmit} disabled={points.length !== 8}>
+          Submit
+        </button>
+      </div>
+      {responseMessage && <p style={{ color: "#0984e3" }}>Server response: {responseMessage}</p>}
       {transformedImage && (
-        <div>
+        <div style={{ marginTop: 18 }}>
           <h3>Transformed Image</h3>
           <img
             src={transformedImage}
             alt="Transformed"
-            style={{ width: "500px", height: "auto" }}
+            style={{
+              width: "500px",
+              height: "auto",
+              borderRadius: "10px",
+              boxShadow: "0 2px 10px rgba(44,62,80,0.08)"
+            }}
           />
           <h4>Transformed Marker Points</h4>
           <ul>

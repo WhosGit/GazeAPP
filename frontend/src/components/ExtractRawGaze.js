@@ -23,17 +23,22 @@ const ExtractRawGaze = () => {
     });
     const data = await response.json();
     console.log("Response from backend:", data);
+    // Notify Gazeprocess component to refresh gaze.npy status
+    window.dispatchEvent(new Event("gaze_npy_uploaded"));
   };
 
   return (
     <div>
       <h2>Extract Raw Gaze</h2>
-      <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} />
+      <div style={{ margin: "10px 0" }}>
+        <input type="file" accept=".xlsx,.xls" onChange={handleFileChange} />
+      </div>
       <input
         type="text"
-        placeholder="Enter participant name"
+        placeholder="Enter participant name(s), comma separated"
         value={participantName}
         onChange={(e) => setParticipantName(e.target.value)}
+        style={{ width: "260px", marginRight: 10 }}
       />
       <button onClick={handleSubmit} disabled={!selectedFile || !participantName}>
         Submit
