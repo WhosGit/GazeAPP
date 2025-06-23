@@ -7,10 +7,6 @@ from app.utils import (
     generate_plot,
     gaze_process
 )
-from app.model import (
-    get_session_folder,
-    create_session_folder
-)
 import os
 import numpy as np
 import cv2
@@ -39,14 +35,12 @@ def encode_image_to_base64(img):
 
 @api.route("/frame_config", methods=["POST"])
 def frame_config():
-    session_folder = get_session_folder()
-
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
 
     image_file = request.files["image"]
-    filename = secure_filename(image_file.filename)
-    image_path = os.path.join(session_folder, filename)
+    filename = "config_image.png"  # 统一命名
+    image_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
     image_file.save(image_path)
 
     image = cv2.imread(image_path)
@@ -64,9 +58,10 @@ def frame_config():
     result = extractFrame(image, points)
 
     # === Save results ===
-    output_json_path = os.path.join(session_folder, f"{Path(filename).stem}.json")
-    output_marker_path = os.path.join(session_folder, f"{Path(filename).stem}_marker.json")
-    output_image_path = os.path.join(session_folder,  filename)
+    output_json_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "tags.json")
+    output_marker_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "markers.json")
+    output_image_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "config_image.png")
+    
     with open(output_marker_path, 'w') as f:
         json.dump(result["transformed_marker_coords"], f, indent=4)
     with open(output_json_path, 'w') as f:
@@ -85,8 +80,6 @@ def frame_config():
 
 @api.route("/extract_raw_gaze", methods=["POST"])
 def extract_raw_gaze():
-    session_folder = get_session_folder()
-
     """Handle Excel file upload for extracting gaze data"""
     if "excel" not in request.files or "participant" not in request.form:
         return jsonify({"error": "Invalid request"}), 400
@@ -94,17 +87,17 @@ def extract_raw_gaze():
     excel_file = request.files["excel"]
     participant_name = request.form.get("participant")
     
-    filename = secure_filename(excel_file.filename)
-    excel_path = os.path.join(session_folder, filename)
+    filename = "gaze_data.xlsx"  # 统一命名
+    excel_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
     excel_file.save(excel_path)
     participants = participant_name.split(', ')
     fixation_data_list = gaze2npy(excel_path, participants)
 
     # Save the fixation data as .npy files
-    raw_gaze_folder = os.path.join(session_folder, "raw_gaze")
+    raw_gaze_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "raw_gaze")
     os.makedirs(raw_gaze_folder, exist_ok=True)
     for fixation_data in fixation_data_list:
-        npy_file_path = os.path.join(raw_gaze_folder, f"{fixation_data['participant']}.npy")  # 修正引号
+        npy_file_path = os.path.join(raw_gaze_folder, f"{fixation_data['participant']}.npy")
         np.save(npy_file_path, fixation_data["fixation_points"])
 
     return jsonify({
@@ -114,25 +107,17 @@ def extract_raw_gaze():
 
 @api.route("/detect_segments", methods=["POST"])
 def detect_segments():
-    session_folder = get_session_folder()
-    
     video_file = request.files.get("video")
     light = request.form.get("light", "")
     head = request.form.get("head", "")
     media = request.form.get("media", "")
 
     if video_file:
-        # Save the video file
-        video_path = os.path.join(session_folder, "video.mp4")
+        # Save the video file with unified name
+        video_path = os.path.join(current_app.config['UPLOAD_FOLDER'], "video.mp4")
         video_file.save(video_path)
     else:
         return jsonify({"error": "No video file provided"}), 400
-
-    # with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-    #     video_path = tmp.name
-    #     video_file.save(video_path)
-
-    
 
     try:
         marker_0, marker_1, fps = detect_markers(video_path)
@@ -140,13 +125,14 @@ def detect_segments():
         labels = assign_labels(starts, light, head, media)
         plot_base64 = generate_plot(m0_merged, m1_merged)
 
-        # Save the segments to a JSON file
-        segmentation_path = os.path.join(session_folder, "segments.json")
+        # Save the segments to a JSON file with unified name
+        segmentation_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "segments.json")
         with open(segmentation_path, "w") as f:
             json.dump({
                 "starts": starts,
                 "ends": ends,
-                "labels": labels
+                "labels": labels,
+                "fps": fps
             }, f, indent=2)
 
         return jsonify({
@@ -157,18 +143,13 @@ def detect_segments():
             "fps": fps
         })
     finally:
-        if os.path.exists(video_path):  # 防止文件不存在时报错
-            # os.remove(video_path)
-            pass
+        if os.path.exists(video_path):
+            pass  # Keep video file for later processing
 
 # Re-execute to restore Flask endpoint in the new kernel context
 
-# Re-execute to restore Flask endpoint in the new kernel context
 @api.route("/submit_segments", methods=["POST"])
 def submit_segments():
-    session_folder = get_session_folder()
-
-
     data = request.get_json()
     starts = data.get("starts", [])
     ends = data.get("ends", [])
@@ -194,7 +175,6 @@ def submit_segments():
         start = starts[i]
         end = ends[i]
 
-        
         if "cali" in label:
             start, end = adjust_interval(start, end, 27*25, fps)
         elif "image" in label:
@@ -202,7 +182,6 @@ def submit_segments():
             start, end = adjust_interval(start, end, 10*25, fps)
         elif "video" in label:
             start, end = adjust_interval(start, end, 30*25, fps)
-        
 
         adjusted_segments.append({
             "start": start,
@@ -210,49 +189,81 @@ def submit_segments():
             "label": labels[i]
         })
 
-    segmentation_path = os.path.join(session_folder, "segments_25fps.json")
+    # Save with unified name
+    segmentation_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "segments_25fps.json")
     with open(segmentation_path, "w") as f:
         json.dump(adjusted_segments, f, indent=2)
 
+    # Process gaze data automatically
+    video_path = os.path.join(current_app.config['UPLOAD_FOLDER'], "video.mp4")
+    raw_gaze_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "raw_gaze")
+    tags_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "tags.json")
+    final_output_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "final_output")
+    os.makedirs(final_output_folder, exist_ok=True)
+
+    # Process gaze data if available
+    processed = False
+    if os.path.exists(raw_gaze_folder):
+        for file in os.listdir(raw_gaze_folder):
+            if file.endswith(".npy"):
+                gaze_path = os.path.join(raw_gaze_folder, file)
+                try:
+                    gaze_process(video_path, gaze_path, segmentation_path, tags_path, final_output_folder)
+                    processed = True
+                    break
+                except Exception as e:
+                    print(f"Error processing gaze data: {e}")
+
     return jsonify({
         "message": "Segments saved successfully.",
-        "segment_count": len(adjusted_segments)
+        "segment_count": len(adjusted_segments),
+        "gaze_processed": processed
     })
 
 @api.route("/results/<filename>")
 def get_results(filename):
-    session_folder = get_session_folder()   
+    # Try uploads folder first, then outputs folder
+    upload_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    output_path = os.path.join(current_app.config['OUTPUT_FOLDER'], filename)
     
-    if not os.path.exists(os.path.join(session_folder, filename)):
-        if filename == "gaze.npy":
-            # 如果没有gaze.npy文件，尝试从raw_gaze目录中获取
-            raw_gaze_folder = os.path.join(session_folder, "raw_gaze")
+    if os.path.exists(upload_path):
+        return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
+    elif os.path.exists(output_path):
+        return send_from_directory(current_app.config['OUTPUT_FOLDER'], filename)
+    else:
+        # Try raw_gaze folder for .npy files
+        if filename.endswith(".npy"):
+            raw_gaze_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "raw_gaze")
             if os.path.exists(raw_gaze_folder):
                 for file in os.listdir(raw_gaze_folder):
                     if file.endswith(".npy"):
                         return send_from_directory(raw_gaze_folder, file)
+        # Try final_output folder
+        final_output_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "final_output")
+        final_output_path = os.path.join(final_output_folder, filename)
+        if os.path.exists(final_output_path):
+            return send_from_directory(final_output_folder, filename)
+            
         return jsonify({"error": "File not found"}), 404
 
-    return send_from_directory(session_folder, filename)
-
-# 新增：返回实际可下载的URL
 @api.route("/results_url/<filename>")
 def get_results_url(filename):
-    session_folder = get_session_folder()
-    if not os.path.exists(os.path.join(session_folder, filename)):
+    # Check if file exists in any of the standard locations
+    upload_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    output_path = os.path.join(current_app.config['OUTPUT_FOLDER'], filename)
+    
+    if os.path.exists(upload_path) or os.path.exists(output_path):
+        return jsonify({
+            "url": f"/api/results/{filename}"
+        })
+    else:
         return jsonify({"error": "File not found"}), 404
-    # 返回带 session 路径的下载URL
-    return jsonify({
-        "url": f"/api/results/{filename}"
-    })
 
 RESULT_EXT = [".mp4", ".npy", ".json", ".json"]
 RESULT_FILENAME = ["video.mp4", "gaze.npy", "segments_25fps.json", "tags.json"]   
 
 @api.route("/upload_user_result/<int:index>", methods=["POST"])
 def upload_user_result(index):
-    session_folder = get_session_folder()
-
     if index < 0 or index >= len(RESULT_EXT):
         return jsonify({"error": "Invalid index"}), 400
 
@@ -265,48 +276,47 @@ def upload_user_result(index):
         return jsonify({"error": f"File must be a {RESULT_EXT[index]} file"}), 400
 
     filename = RESULT_FILENAME[index]
-    file_path = os.path.join(session_folder, filename)
+    # Save to appropriate folder based on file type
+    if filename == "video.mp4":
+        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    else:
+        file_path = os.path.join(current_app.config['OUTPUT_FOLDER'], filename)
+        
     file.save(file_path)
 
     return jsonify({"message": f"{filename} uploaded successfully."})
 
 @api.route("/submit_final_results", methods=["POST"])
 def submit_final_results():
-    session_folder = get_session_folder()
-
-    # 获取 output_folder 参数，默认为 session_folder/processed_gaze
+    # Get output folder parameter, default to final_output
     if request.is_json:
         output_folder = request.json.get("output_folder")
     else:
         output_folder = None
     if not output_folder:
-        output_folder = os.path.join(session_folder, "processed_gaze")
-    # 若为相对路径，自动补全为 OUTPUT_FOLDER 下的子目录
-    if not os.path.isabs(output_folder):
-        output_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], output_folder) if not output_folder.startswith(session_folder) else output_folder
-    print(f"Output folder: {output_folder}")
+        output_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "final_output")
+    
+    # Ensure output folder exists
     os.makedirs(output_folder, exist_ok=True)
 
-    # process_gaze
-    video_path = os.path.join(session_folder, "video.mp4")
-    gaze_folder = os.path.join(session_folder, "raw_gaze")
-    tag_json = os.path.join(session_folder, "tags.json")
-    if not os.path.exists(tag_json):
-        tag_json = os.path.join(current_app.config.get("UPLOAD_FOLDER", session_folder), "tags.json")
-    segmentation_path = os.path.join(session_folder, "segments_25fps.json")
-    gaze_path = os.path.join(session_folder, "gaze.npy")
+    # Use unified file paths
+    video_path = os.path.join(current_app.config['UPLOAD_FOLDER'], "video.mp4")
+    gaze_folder = os.path.join(current_app.config['OUTPUT_FOLDER'], "raw_gaze")
+    tags_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "tags.json")
+    segmentation_path = os.path.join(current_app.config['OUTPUT_FOLDER'], "segments_25fps.json")
 
     # Process gaze data
     processed = False
-    if os.path.exists(gaze_path):
-        gaze_process(video_path, gaze_path, segmentation_path, tag_json, output_folder)
-        processed = True
-    elif os.path.exists(gaze_folder):
+    if os.path.exists(gaze_folder):
         for file in os.listdir(gaze_folder):
             if file.endswith(".npy"):
                 gaze_path = os.path.join(gaze_folder, file)
-                gaze_process(video_path, gaze_path, segmentation_path, tag_json, output_folder)
-                processed = True
+                try:
+                    gaze_process(video_path, gaze_path, segmentation_path, tags_path, output_folder)
+                    processed = True
+                    break
+                except Exception as e:
+                    print(f"Error processing gaze data: {e}")
 
     if not processed:
         return jsonify({
@@ -323,10 +333,14 @@ def view_json(filename):
     if not filename.endswith(".json"):
         return "仅支持json文件预览", 400
 
-    session_folder = get_session_folder()
-    file_path = os.path.join(session_folder, filename)
+    # Try to find the file in outputs folder
+    file_path = os.path.join(current_app.config['OUTPUT_FOLDER'], filename)
     if not os.path.exists(file_path):
-        return "文件未找到", 404
+        # Try uploads folder
+        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+        if not os.path.exists(file_path):
+            return "文件未找到", 404
+            
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -350,3 +364,77 @@ def view_json(filename):
         return html
     except Exception as e:
         return f"读取文件失败: {str(e)}", 500
+
+@api.route("/check_existing_files", methods=["GET"])
+def check_existing_files():
+    """Check which output files already exist"""
+    output_dir = current_app.config['OUTPUT_FOLDER']
+    
+    existing_files = {
+        "segments": os.path.exists(os.path.join(output_dir, "segments.json")),
+        "segments_25fps": os.path.exists(os.path.join(output_dir, "segments_25fps.json")),
+        "markers": os.path.exists(os.path.join(output_dir, "markers.json")),
+        "tags": os.path.exists(os.path.join(output_dir, "tags.json")),
+        "processed_gaze": len([f for f in os.listdir(os.path.join(output_dir, "processed_gaze")) if f.endswith('.npy')]) > 0 if os.path.exists(os.path.join(output_dir, "processed_gaze")) else False,
+        "raw_gaze": len([f for f in os.listdir(os.path.join(output_dir, "raw_gaze")) if f.endswith('.npy')]) > 0 if os.path.exists(os.path.join(output_dir, "raw_gaze")) else False,
+        "final_output": len(os.listdir(os.path.join(output_dir, "final_output"))) > 0 if os.path.exists(os.path.join(output_dir, "final_output")) else False,
+        "video": os.path.exists(os.path.join(current_app.config['UPLOAD_FOLDER'], "video.mp4")),
+        "config_image": os.path.exists(os.path.join(output_dir, "config_image.png"))
+    }
+    
+    return jsonify(existing_files)
+
+@api.route("/get_final_results", methods=["GET"])
+def get_final_results():
+    """Get processed gaze results if they exist"""
+    output_dir = current_app.config['OUTPUT_FOLDER']
+    final_output_dir = os.path.join(output_dir, "final_output")
+    
+    if not os.path.exists(final_output_dir):
+        return jsonify({"exists": False, "message": "No final output directory found"})
+    
+    # List all files in final_output directory
+    try:
+        files = os.listdir(final_output_dir)
+        result_files = []
+        
+        for file in files:
+            file_path = os.path.join(final_output_dir, file)
+            if os.path.isfile(file_path):
+                # For image files, encode as base64
+                if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    with open(file_path, 'rb') as f:
+                        file_content = base64.b64encode(f.read()).decode('utf-8')
+                        result_files.append({
+                            "name": file,
+                            "type": "image",
+                            "content": f"data:image/{file.split('.')[-1]};base64,{file_content}"
+                        })
+                # For JSON files, read as JSON
+                elif file.lower().endswith('.json'):
+                    with open(file_path, 'r') as f:
+                        file_content = json.load(f)
+                        result_files.append({
+                            "name": file,
+                            "type": "json",
+                            "content": file_content
+                        })
+                else:
+                    result_files.append({
+                        "name": file,
+                        "type": "other",
+                        "content": None
+                    })
+        
+        return jsonify({
+            "exists": True,
+            "files": result_files,
+            "message": f"Found {len(result_files)} result files"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "exists": False,
+            "error": str(e),
+            "message": "Error reading final output directory"
+        })
